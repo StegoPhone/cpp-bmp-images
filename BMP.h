@@ -63,7 +63,7 @@ struct BMP {
     }
 
     bool read(SdExFat &sd, const char *fname) {
-        ExFile inp = sd.open("stegophone.png", FILE_READ);
+        ExFile inp = sd.open(fname, FILE_READ);
         if (!inp) {
             BMPErrorCode = "Unable to open the input image file.";
             return false;
