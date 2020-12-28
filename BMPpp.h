@@ -197,6 +197,32 @@ namespace BMPpp {
             return true;
         }
 
+        std::vector<unsigned char> get4bppPackedLCDGray() {
+            std::vector<unsigned char> result;
+            uint32_t channels = _bmp.bmp_info_header.bit_count / 8;
+            int offset = 0;
+            unsigned char tmp;
+            for (int32_t y = 0; y < _bmp.bmp_info_header.height; ++y) {
+                for (int32_t x = 0; x < _bmp.bmp_info_header.width; ++x) {
+                    unsigned char B = _bmp.data[channels * (y * _bmp.bmp_info_header.width + x) + 0];
+                    unsigned char G = _bmp.data[channels * (y * _bmp.bmp_info_header.width + x) + 1];
+                    unsigned char R = _bmp.data[channels * (y * _bmp.bmp_info_header.width + x) + 2];
+                    unsigned char A;
+                    if (channels == 4) {
+                        A = _bmp.data[channels * (y * _bmp.bmp_info_header.width + x) + 3];
+                    }
+                    unsigned char gray = ( (0.3 * R) + (0.59 * G) + (0.11 * B) ) / 16;
+                    if (offset++ % 2 == 0) {
+                        tmp = gray & 0x0F;
+                    } else {
+                        tmp = tmp | (gray << 4);
+                        result.push_back(tmp);
+                    }
+                }
+            }
+            return result;
+        }
+
         bool set_pixel(uint32_t x0, uint32_t y0, uint8_t B, uint8_t G, uint8_t R, uint8_t A) {
             if (x0 >= (uint32_t) _bmp.bmp_info_header.width || y0 >= (uint32_t) _bmp.bmp_info_header.height || x0 < 0 || y0 < 0) {
                 this->BMPErrorCode = "The point is outside the image boundaries!";
