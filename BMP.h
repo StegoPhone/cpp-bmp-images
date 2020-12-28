@@ -68,32 +68,43 @@ struct BMP {
             BMPErrorCode = "Unable to open the input image file.";
             return false;
         }
+        uint64_t fileSize = inp.size();
+        unsigned char bmpBytes[fileSize];
+        unsigned int count = inp.read(bmpBytes, fileSize);
+        uint64_t offset = 0;
+        if (count != fileSize) {
+            BMPErrorCode = "Read fewer bytes than expected";
+            return false;
+        }
+        inp.close();
 
-        inp.read((char *) &file_header, sizeof(file_header));
+        memcpy((char *) &file_header, bmpBytes, sizeof(file_header));
+        offset = sizeof(file_header);
+
         if (file_header.file_type != 0x4D42) {
-            inp.close();
             BMPErrorCode = "Error! Unrecognized file format.";
             return false;
         }
-        inp.read((char *) &bmp_info_header, sizeof(bmp_info_header));
+        memcpy((char *) &bmp_info_header, bmpBytes, sizeof(bmp_info_header));
+        offset = sizeof(bmp_info_header);
 
         // The BMPColorHeader is used only for transparent images
         if (bmp_info_header.bit_count == 32) {
             // Check if the file has bit mask color information
             if (bmp_info_header.size >= (sizeof(BMPInfoHeader) + sizeof(BMPColorHeader))) {
-                inp.read((char *) &bmp_color_header, sizeof(bmp_color_header));
+                memcpy((char *) &bmp_color_header, bmpBytes + offset, sizeof(bmp_color_header));
+                offset += sizeof(bmp_color_header);
                 // Check if the pixel data is stored as BGRA and if the color space type is sRGB
                 check_color_header(bmp_color_header);
             } else {
                 BMPErrorCode = "Error! The file \"" + std::string(fname) +
                                "\" does not seem to contain bit mask information\n";
-                inp.close();
                 return false;
             }
         }
 
         // Jump to the pixel data location
-        inp.seekg(file_header.offset_data, inp.beg);
+        offset = file_header.offset_data;
 
         // Adjust the header fields for output.
         // Some editors will put extra info in the image file, we only save the headers and the data.
@@ -115,7 +126,8 @@ struct BMP {
 
         // Here we check if we need to take into account row padding
         if (bmp_info_header.width % 4 == 0) {
-            inp.read((char *) data.data(), data.size());
+            memcpy((char *) data.data(), bmpBytes + offset, data.size());
+            offset += data.size();
             file_header.file_size += static_cast<uint32_t>(data.size());
         } else {
             row_stride = bmp_info_header.width * bmp_info_header.bit_count / 8;
@@ -123,8 +135,10 @@ struct BMP {
             std::vector <uint8_t> padding_row(new_stride - row_stride);
 
             for (int y = 0; y < bmp_info_header.height; ++y) {
-                inp.read((char *) (data.data() + row_stride * y), row_stride);
-                inp.read((char *) padding_row.data(), padding_row.size());
+                memcpy((char *) (data.data() + row_stride * y), bmpBytes + offset, row_stride);
+                offset += row_stride;
+                memcpy((char *) padding_row.data(), bmpBytes + offset, padding_row.size());
+                offset += padding_row.size();
             }
             file_header.file_size += static_cast<uint32_t>(data.size()) +
                                      bmp_info_header.height * static_cast<uint32_t>(padding_row.size());
